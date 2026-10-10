@@ -1,42 +1,48 @@
+#!/usr/bin/env python3
 """
-Tiny embedding similarity search utility.
-Usage: python search.py data.txt --query 0.1,0.2,0.3 --top 5
+tiny embedding similarity search utility
 """
 
-import argparse, math, heapq, sys
+import sys, math, argparse
 
-def load_embeddings(path):
-    data = []
-    with open(path, 'r', encoding='utf-8') as f:
+def cosine(v, u):
+    dot = sum(a*b for a,b in zip(v,u))
+    norm_v = math.sqrt(sum(a*a for a in v))
+    norm_u = math.sqrt(sum(b*b for b in u))
+    return dot/(norm_v*norm_u) if norm_v and norm_u else 0.0
+
+def parse_vector(s):
+    return [float(x) for x in s.strip().split()]
+
+def read_candidates(path):
+    with open(path, 'r') as f:
         for line in f:
-            parts = line.strip().split(',')
-            if len(parts) < 2: continue
-            id_ = parts[0]
-            vec = [float(v) for v in parts[1:]]
-            norm = math.sqrt(sum(v*v for v in vec))
-            data.append((id_, vec, norm))
-    return data
-
-def cosine(q, qnorm, vec, vnorm):
-    dot = sum(a*b for a,b in zip(q, vec))
-    return dot/(qnorm*vnorm) if vnorm else 0.0
+            parts = line.strip().split()
+            if not parts: continue
+            cid, vec = parts[0], [float(x) for x in parts[1:]]
+            yield cid, vec
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('file')
-    parser.add_argument('--query', required=True)
-    parser.add_argument('--top', type=int, default=5)
+    parser = argparse.ArgumentParser(description='Search embeddings by cosine similarity.')
+    parser.add_argument('query', help='Query embedding (space-separated floats)')
+    parser.add_argument('-f', '--file', help='File with candidate embeddings', default=None)
+    parser.add_argument('-n', '--top', type=int, default=3, help='Top N results')
     args = parser.parse_args()
 
-    q = [float(v) for v in args.query.split(',')]
-    qnorm = math.sqrt(sum(v*v for v in q))
+    query_vec = parse_vector(args.query)
 
-    data = load_embeddings(args.file)
-    sims = [(cosine(q, qnorm, vec, norm), id_) for id_, vec, norm in data]
-    top = heapq.nlargest(args.top, sims)
+    candidates = []
+    if args.file:
+        for cid, vec in read_candidates(args.file):
+            candidates.append((cid, vec))
+    else:
+        default = {'a':[0.1,0.2,0.3], 'b':[0.4,0.5,0.6], 'c':[0.7,0.8,0.9]}
+        for cid, vec in default.items():
+            candidates.append((cid, vec))
 
-    for sim, id_ in top:
-        print(f'{id_}\t{sim:.4f}')
+    results = []
+    for cid, vec in candidates:
+        results.append((cosine(query_vec, vec), cid, vec))
+    results.sort(reverse=True)
 
-if __name__ == '__main__':
-    main()
+    for
